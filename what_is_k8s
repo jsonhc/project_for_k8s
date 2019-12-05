@@ -2,5 +2,70 @@ k8s是Google内部一个叫Borg的容器集群管理系统衍生出来的
 
 k8s主要用于自动化部署、扩展和管理容器，提供了资源调度、部署管理、服务发现、扩容缩容，监控等一整套功能
 
-k8s的主要功能：
-  数据卷：
+外部调用:
+	api调用,UI界面操作调用,CLI命令行界面调用
+master:
+	api server:接收客户端请求的入口,将用户提供的请求信息保存在etcd中,保存在etcd的期望状态请求
+	scheduler:调度器,评估node节点是否可用,watch api server新创建的请求,调度在某个节点,将调度的结果保存在etcd中,由controller监控在node节点上创建的状态是否可用
+	controller:master的大脑,核心组件,指令下达后确保创建的始终可用,循环健康检查创建的是否可用,当不健康就重启或者重建
+controller会始终watch api server的资源请求变动,就立即获取这个请求变动操作,controller也会从etcd获取请求资源是不是一致,必须一致
+
+etcd:kv存储系统,数据库
+	只存储api server支持的格式请求
+
+
+node
+	kubelet:watch api server资源变动,执行创建重启的应用,调动docker,从镜像拉取
+	pod:容器外加一层壳,一个pod可以有多个容器,只能在同一个节点,运行基本单元pod
+		一个pod可以有多个容器,共享网络运行空间,共享基础架构容器资源
+	kube-proxy
+	container runtime:docker或者提供容器的接口
+
+DNS:完成服务注册,服务发现的功能
+WEB UI:web页面
+CNI:容器网络接口的实现,为k8s提供网络功能
+
+
+pid,network,mount,IPC,user,UTS
+docker网络模型:closed,bridge,joined,host
+
+k8s api:restful api(http/https)
+	method:GET,PUT,POST,DELETE,PATCH
+	类,类的属性,类的方法,实例化的结果是对象
+
+k8s cluster:容器编排系统,核心任务:容器编排(增删改查pod对象),容器:应用程序
+基础对象:
+	Pod:通过创建pod运行起容器并运行应用程序
+		容器健康检测:通过pod controller来实现,通过deployment来创建pod,也是通过label来管理pod
+		内部服务怎么被客户端访问?
+			服务注册,服务发现建立在service(Pod创建或销毁或新增等等),客户端访问service由service负载均衡或者反向代理等方式与Pod通信
+			service被创建,ip是service ip即cluster ip,关联pod使用标签,service就是iptables|ipvs规则
+			pod被创建,ip是pod ip
+		
+
+k8s通过label标签来区别,来关联各个组件对象
+
+k8s中DNS重要组件
+	将service等组件的ip当做A记录注册在DNS上,当service ip变了也能实时将新ip注册在DNS中
+
+node ip:节点ip,节点网卡
+pod ip:容器ip,容器虚拟网卡
+service:iptables|ipvs 规则ip,也存在于DNS记录中
+客户端访问service是通过DNS名称解析出来,然后通过规则转换为pod ip就能实现通信
+
+客户端:
+	n的client:远程客户端
+	t的client:nginx
+	m的client:t上的应用程序
+	nginx+tomcat+mysql
+		nginx pod---->service----->tomcat pod------->service------>mysql pod
+		nginx控制器创建管理nginx pod,tomcat控制器创建管理tomcat pod,mysql控制器创建管理mysql pod
+		
+发布,变更,故障处理都有控制器进行自动处理,控制器就是运维工程师
+
+k8s网络:
+	节点网络通信:master,node节点
+	pod网络通信:pod 网络
+		不同节点pod间访问
+			node1-pod1------>service网络(查询通信工具)------>node2-pod2
+	service网络通信:service网络处于ip规则中,存在于DNS A记录
